@@ -1,4 +1,4 @@
-# Class 8
+# Class 9
 
 ## Scala Traits
 
@@ -429,13 +429,12 @@ c.price() // returns 1.7
 The observed behavior is consistent with the expected behavior of the
 stacked traits.
 
-### Self-Types
+### Self-Types and Dependency Injection
 
-Coming soon...
-
-#### Dependency Injection
-
-Coming soon...
+Situations where such mutually dependent components arise are not
+uncommon (the original paper that introduced self-types provides an
+example of this motivated by the implementation of the Scala compiler
+itself).
 
 #### The Cake Pattern
 
