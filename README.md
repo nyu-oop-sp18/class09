@@ -431,11 +431,232 @@ stacked traits.
 
 ### Self-Types and Dependency Injection
 
+Large software systems are often organized into interdependent
+components that provide different services and functionality. It
+desirable to design the overall system in such a way that components
+can be reused in other contexts or replaced by alternative
+implementations without much effort. This is particular helpful for
+testing an individual component when other components it depends on
+are also still under development.
+
+A common solution to this problem in OOP is a design pattern referred
+to as
+[dependency injection](https://en.wikipedia.org/wiki/Dependency_injection). In
+the OOP setting, software components correspond to classes. The
+instance `b` of a component `B` on which another component `A` depends
+is injected into the instance `a` of `A` by passing a reference to `b`
+when `a` is created. This can be implemented via auxiliary constructor
+arguments in `A`, or dedicated setter methods.
+
+Many languages do not provide inbuilt mechanisms for expressing
+dependencies and implementing the *wiring* between components
+succinctly. Therefore, one often resorts to using specialized
+frameworks such as [Spring](https://spring.io/) for Java that reduce
+some of the boilerplate code that is needed to implement this design pattern.
+
+Scala provides a language feature referred to as *self-types* that
+together with mixin composition of traits can be used for a
+light-weight implementation of dependency injection.
+
+A self type of a class or trait `C` expresses that the instances of
+`C` depend on another class `D`. Self-types can be expressed using the
+following syntax:
+
+```scala
+trait C {
+  self: D => 
+  // implementation of C
+  ...
+}
+```
+
+Note that the scope of the identifier `self` is the body of trait `C`
+and is always an alias for `this`. You may use any other valid Scala
+identifier instead of `self` in the self-type declaration, including
+`this` itself.
+
+The effect of the self-type annotation is that we can now access the
+members of class `D` within the body of `C` as if they were members of
+`C`.
+
+The compiler will statically enforce that before an instance of some
+class that extends `C` can be created, we have to mixin `D` into that
+class (or some other subtype of `D`) to satisfy `C`'s dependency:
+
+```scala
+val c = new C with D { ... }
+```
+
+Note that the above self-type for `C` is different from a subtyping
+constraint expressed using `extends`:
+
+```scala
+trait C extends D {
+  ...
+}
+```
+
+In particular, we can use self-types to express mutual dependencies
+between the two classes `C` and `D`:
+
+```scala
+trait D {
+  self: C => 
+  // implementation of D
+  ...
+}
+```
 Situations where such mutually dependent components arise are not
-uncommon (the original paper that introduced self-types provides an
-example of this motivated by the implementation of the Scala compiler
-itself).
+uncommon
+(the
+[original paper](http://lampwww.epfl.ch/~odersky/papers/ScalableComponent.pdf) that
+introduced self-types provides an example of such a situation that is
+motivated by the implementation of the Scala compiler itself).
+
+Also, self-types do not impose a specific order in which `C` and `D`
+are mixed together:
+
+```scala
+val c = new D with C { ... }
+```
+
+Let us look at a more concrete example of how this all works. Let's
+start from our stackable modifications example in the previous
+section. As part of this example, we declared the following trait
+
+```scala
+trait Sugar extends Coffee {
+  override def toString: String = super.toString + " with sugar"
+}
+```
+
+This is actually not a great design. Remember that class
+inheritance should be used for expressing an "is a" relationship
+between the subclass and its superclass. This is clearly not the case
+here: a condiment such as `Sugar` is certainly not a beverage like
+`Coffee`.
+
+Let's improve our design by creating two separate components for
+expressing the relationship between beverages and condiments: a
+`BeverageProduct` that abstracts from beverage products such as
+`Coffee` and a `CondimentProvider` that serves as a container for the
+specific condiments "decorating" a particular
+beverage. `BeverageProduct` captures basic properties of the beverage,
+such as its base price, its base ingredients and so
+forth. `CondimentProvider` keeps track of the surcharges associated
+with the added condiments and the additional ingredients contained in
+them. It also provides functionality for computing the final price and
+ingredient list of a beverage with condiments.
+
+We use self-types to separate the two components into their own
+traits. Here is how `BeverageProduct` looks like:
+
+
+```scala
+trait BeverageProduct {
+  this: CondimentProvider =>
+
+  val basePrice: Double
+  val baseIngredients: List[String]
+
+  /* methods related to products */
+  ...
+}
+```
+
+And here is a concrete implementation of a `BeverageProduct`:
+
+```scala
+trait EspressoProduct extends BeverageProduct {
+  this: CondimentProvider =>
+
+  override val basePrice = 3.00
+  override val baseIngredients = List("espresso")
+}
+```
+
+Next, let's define a trait for condiments:
+
+```scala
+trait Condiment {
+  def price: Double = 0.0
+
+  def ingredients: List[String] = Nil
+}
+```
+
+Note that `Condiment` is no longer a subtype of `BeverageProduct` like
+e.g. `Sugar` was a subtype of `Coffee` in our previous design.
+
+As in our earlier example, we can still implement specific condiments
+as stackable components:
+
+```scala
+trait Sweetener extends Condiment {
+  override def ingredients = "sugar" :: super.ingredients
+}
+  
+trait MilkFroth extends Condiment {
+  override def ingredients = "milk" :: super.ingredients
+}
+```
+
+Finally, here is our implementation of `CondimentProvider`:
+
+```scala
+trait CondimentProvider {
+  this: BeverageProduct =>
+  
+  val condiments: Condiment
+    
+  def price: Double = basePrice + condiments.price
+      
+  def ingredients: String = {
+    val ingr = baseIngredients ++ condiments.ingredients
+    ingr reduce (_ + " and " + _)
+  }
+}
+```
+
+Note how the implementation of `price` uses `basePrice` which is
+provided by through the self-type `BeverageProduct` to calculate the
+total price of the beverage.
+
+Here is a concrete subclass of `CondimentProvider` that provides
+`MilkFroth` and `Sweetener`:
+
+```scala
+trait SweetFrothProvider extends CondimentProvider {
+  this: BeverageProduct =>
+  val condiments = new Sweetener with MilkFroth
+}
+```
+
+Using mixin composition, we can now wire the components together to
+implement specific beverage products. For instance, a cappuccino can
+be obtained by mixing `EspressoProduct` with `SweetFrothProvider`:
+
+```scala
+object cappuccino extends EspressoProduct with SweetFrothProvider {
+  override def toString = "cappuccino"
+}
+```
+
+Executing
+
+```scala
+println(s"A cappuccino consists of ${cappuccino.ingredients}, and costs $$${cappuccino.price}")
+```
+
+would then print:
+
+```
+A cappuccino consists of espresso and milk and sugar, and costs $3.0
+```
 
 #### The Cake Pattern
 
-Coming soon...
+The above implementation of dependency injection using self-types is a
+simplified variant of the more
+general
+[Cake Pattern](http://jonasboner.com/real-world-scala-dependency-injection-di/).
