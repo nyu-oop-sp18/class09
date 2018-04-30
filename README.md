@@ -245,7 +245,7 @@ println(s"A ${c.toString} costs $$${c.price}.")
 This code will print
 
 ```
-A coffee with milk with sugar costs $2.0.
+A coffee with sugar with milk costs $2.0.
 ```
 
 In particular, the call `c.toString` will be dispatched to
