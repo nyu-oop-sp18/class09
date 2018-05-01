@@ -245,7 +245,7 @@ println(s"A ${c.toString} costs $$${c.price}.")
 This code will print
 
 ```
-A coffee with sugar with milk costs $2.0.
+A coffee with sugar with milk costs $1.5.
 ```
 
 In particular, the call `c.toString` will be dispatched to
@@ -268,7 +268,7 @@ println(s"A ${c} costs $$${c.price}.")
 we get
 
 ```
-A Coffee with milk with sugar costs $2.0.
+A Coffee with milk with sugar costs $1.5.
 ```
 
 Such stackable modifications are quite useful if you have many
