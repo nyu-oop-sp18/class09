@@ -128,7 +128,7 @@ trait T2 {
 }
 
 class D extends T1 with T2 {
-  val x = new A and B
+  val x = new A with B
 }
 
 object Traits extends App {
